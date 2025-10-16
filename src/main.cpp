@@ -1,183 +1,57 @@
-#include <iostream>
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
-#include <SDL3_image/SDL_image.h>
-#include <SDL3_mixer/SDL_mixer.h>
-#include <SDL3_ttf/SDL_ttf.h>
-#include <glm/glm.hpp>
-#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <entt/entt.hpp>
-#include <imgui.h>
-#include <imgui_impl_sdl3.h>
-#include <imgui_impl_sdlrenderer3.h>
 
-int main(int, char**) {
+// 定義兩個組件 位置和速度
+struct Position
+{
+    float x, y;
+};
 
-    // --- entt 测试 ---
+struct Velocity
+{
+    float dx, dy;
+};
+
+int main()
+{
+    // step1: 創建resgistry
+    // entt::registry 是一個用來管理實體和組件的核心類別
     entt::registry registry;
 
-    // 创建一个实体
+    // step2: 創建實體
+    // 實體本身是唯一的標識符(ID)，可以通過 registry.create() 方法創建
     entt::entity player = registry.create();
     entt::entity enemy = registry.create();
 
-    // 打印出实体ID，但它就是一个数字，本身没有意义
-    // entt会保证这个数字是独一无二的
-    std::cout << "Player entity ID: " << static_cast<uint32_t>(player) << std::endl;
-    std::cout << "Enemy entity ID: " << static_cast<uint32_t>(enemy) << std::endl;
+    // step3: 添加組件
+    // 使用 registry.emplace<ComponentType>(entity, args...) 方法為實體添加組件
+    registry.emplace<Position>(player, 10.0f, 20.0f);
+    registry.emplace<Velocity>(player, 1.0f, 0.0f);
 
-    // --- spdlog json 测试 ---
-    spdlog::info("你好，世界!");
-    nlohmann::json json_data = {{"a",10}};
-    auto num = json_data["a"].get<int>();
-    spdlog::warn("json: {}", num);
+    registry.emplace<Position>(enemy, 100.0f, 50.0f);
 
-    // -- glm 测试 --
-    glm::vec2 a = glm::vec2(1.0f, 2.0f);
-    glm::vec2 b = glm::vec2(3.0f, 4.0f);
-    auto c = a * b;
-    auto d = glm::distance(a, b);
-    SDL_Log("d = (%f)", d);
+    // step4: 修改組件
+    // 獲取組建的引用後，可以直接修改其值
+    auto &player_pos = registry.get<Position>(player);
+    spdlog::info("Player Position: ({}, {})", player_pos.x, player_pos.y);
+    player_pos.x += 5.0f; // 移動玩家位置
+    spdlog::info("Player New Position: ({}, {})", player_pos.x, player_pos.y);
 
-    SDL_Log("c = (%f, %f)", c.x, c.y);
+    // step5: 移除組件
+    // 使用 registry.remove<ComponentType>(entity) 方法移除組件
+    registry.remove<Velocity>(player);
 
-    std::cout << "Hello, World!" << std::endl;
-    // SDL初始化
-    if (!SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO)) {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
-        return 1;
+    // step6: 銷毀實體
+    // 使用 registry.destroy(entity) 方法銷毀實體及其所有組件
+    registry.destroy(enemy);
+
+    // step7: 檢查實體是否存在
+    if (registry.valid(player))
+    {
+        spdlog::info("Player entity is valid.");
     }
-    // 创建窗口
-    SDL_Window *window = SDL_CreateWindow("Hello World!", 800, 600, 0);
-    // 创建渲染器
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
-
-    // SDL3_Image不需要手动初始化
-
-    // 加载图片
-    SDL_Texture *texture = IMG_LoadTexture(renderer, "assets/textures/Buildings/Castle.png");
-
-    // SDL_Mixer初始化
-    if (!Mix_OpenAudio(0, NULL)) {
-        std::cerr << "Mix_OpenAudio Error: " << SDL_GetError() << std::endl;
-        return 1;
+    if (!registry.valid(enemy))
+    {
+        spdlog::info("Enemy entity has been destroyed.");
     }
-
-    // 读取音乐
-    Mix_Music *music = Mix_LoadMUS("assets/audio/4 Battle Track INTRO TomMusic.ogg");
-    // 播放音乐
-    Mix_PlayMusic(music, -1);
-
-    // SDL_TTF初始化
-    if (!TTF_Init()) {
-        std::cerr << "TTF_Init Error: " << SDL_GetError() << std::endl;
-        return 1;
-    }
-    // 加载字体
-    TTF_Font *font = TTF_OpenFont("assets/fonts/VonwaonBitmap-16px.ttf", 24);
-
-    // 创建文本纹理
-    SDL_Color color = {255, 255, 255, 255};
-    SDL_Surface *surface = TTF_RenderText_Solid(font, "Hello, SDL! 中文也可以", 0, color);
-    SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, surface);
-
-    // SDL3 新的绘制文本方法
-    TTF_TextEngine *textEngine = TTF_CreateRendererTextEngine(renderer);
-    TTF_Text *text = TTF_CreateText(textEngine, font, "SDL3 新的文本渲染方式", 0);
-    TTF_SetTextColor(text, 255, 0, 0, 255);
-    TTF_SetTextWrapWidth(text, 50);
-    // Do something with the window and renderer here...
-
-    // --- ImGui 测试 ---
-    // 1. 初始化 ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-
-    // 2. ImGui: 初始化 ImGui 的 SDL3 和 SDL_Renderer3 后端
-    ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
-    ImGui_ImplSDLRenderer3_Init(renderer);
-
-    // 渲染循环
-    glm::vec2 mousePos = glm::vec2(0.0f, 0.0f);
-    while (true) {
-        SDL_Event event;
-        if (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                break;
-            }
-            // 3. ImGui:处理 ImGui 事件
-            ImGui_ImplSDL3_ProcessEvent(&event);
-        }
-        // 4. ImGui: 开始 ImGui 渲染
-        ImGui_ImplSDLRenderer3_NewFrame();
-        ImGui_ImplSDL3_NewFrame();
-        ImGui::NewFrame();
-
-        // 5. 显示一个Demo窗口
-        ImGui::ShowDemoWindow();
-
-        auto state = SDL_GetMouseState(&mousePos.x, &mousePos.y);
-        // SDL_Log("Mouse Pos: (%f, %f)", mousePos.x, mousePos.y);
-        if (state & SDL_BUTTON_LMASK) {
-            SDL_Log("Left Button Down");
-        }
-        if (state & SDL_BUTTON_RMASK) {
-            SDL_Log("Right Button Down");
-        }
-        // 清屏
-        SDL_RenderClear(renderer);
-        // 画一个长方形
-        SDL_FRect rect = {100, 100, 200, 200};
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        SDL_RenderFillRect(renderer, &rect);
-        
-
-        // 画图片
-        SDL_FRect dstrect = {200, 200, 200, 200};
-        SDL_RenderTexture(renderer, texture, NULL, &dstrect);
-
-        // 画文本
-        SDL_FRect textRect = {300, 300, static_cast<float>(surface->w), static_cast<float>(surface->h)};
-        SDL_RenderTexture(renderer, textTexture, NULL, &textRect);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); 
-
-        // 新的画文本方法：
-        TTF_DrawRendererText(text, 400, 400);
-
-        // 6. ImGui: 将 ImGui 的内容渲染出来
-        ImGui::Render();
-        ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
-
-        // 更新屏幕
-        SDL_RenderPresent(renderer);
-        
-
-        
-    }
-
-    // 7. ImGui: 清理工作
-    ImGui_ImplSDLRenderer3_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext();
-
-    // 清理图片资源
-    SDL_DestroyTexture(texture);
-
-    // 清理音乐资源
-    Mix_FreeMusic(music);
-    Mix_CloseAudio();
-    Mix_Quit();
-
-    // 清理字体资源
-    SDL_DestroySurface(surface);
-    SDL_DestroyTexture(textTexture);
-    TTF_CloseFont(font);
-    TTF_Quit();
-
-    // 清理并退出
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-
-    return 0;
 }
