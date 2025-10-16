@@ -1,57 +1,76 @@
 #include <spdlog/spdlog.h>
 #include <entt/entt.hpp>
 
-// 定義兩個組件 位置和速度
-struct Position
+struct position
 {
-    float x, y;
+    float x;
+    float y;
 };
 
-struct Velocity
+struct velocity
 {
-    float dx, dy;
+    float dx;
+    float dy;
+};
+
+// 新增一个组件来存储实体的“标签”
+// 这里用 entt::hashed_string 作为标签的类型 (不推荐这样用)
+// struct tag {
+//     entt::hashed_string value;   // 它只保留字符串的“指针”，不保证字符串不会被销毁（类似std::string_view）
+// };                               // 将来使用value.data() 很可能为空
+
+// 确保字符串不被销毁的正确做法：value用于储存，id用于比较/查询
+struct tag
+{
+    entt::id_type id;
+    std::string value;
 };
 
 int main()
 {
-    // step1: 創建resgistry
-    // entt::registry 是一個用來管理實體和組件的核心類別
+    // 使用 using namespace 来简化哈希字符串字面量的使用
+    using namespace entt::literals;
+
     entt::registry registry;
 
-    // step2: 創建實體
-    // 實體本身是唯一的標識符(ID)，可以通過 registry.create() 方法創建
+    // 创建实体并添加基础组件
     entt::entity player = registry.create();
+    registry.emplace<position>(player, 10.f, 20.f);
+    registry.emplace<velocity>(player, 1.f, 0.5f);
+
     entt::entity enemy = registry.create();
+    registry.emplace<position>(enemy, 100.f, 50.f);
+    registry.emplace<velocity>(enemy, -0.5f, -1.f);
 
-    // step3: 添加組件
-    // 使用 registry.emplace<ComponentType>(entity, args...) 方法為實體添加組件
-    registry.emplace<Position>(player, 10.0f, 20.0f);
-    registry.emplace<Velocity>(player, 1.0f, 0.0f);
+    // 1. 使用哈希字符串作为组件数据
+    // "player"_hs 和 "enemy"_hs 在编译时就会被转换成一个整数。
+    // 这意味着在运行时，我们比较的是两个整数，速度极快。
+    // hashed_string可以隐式转换为id_type，既可以赋值...
+    registry.emplace<tag>(player, "player"_hs, "player");
+    registry.emplace<tag>(enemy, "enemy"_hs, "enemy");
 
-    registry.emplace<Position>(enemy, 100.0f, 50.0f);
+    spdlog::info("=== 使用哈希字符串标签 ===");
 
-    // step4: 修改組件
-    // 獲取組建的引用後，可以直接修改其值
-    auto &player_pos = registry.get<Position>(player);
-    spdlog::info("Player Position: ({}, {})", player_pos.x, player_pos.y);
-    player_pos.x += 5.0f; // 移動玩家位置
-    spdlog::info("Player New Position: ({}, {})", player_pos.x, player_pos.y);
+    // 2. 通过视图遍历并识别实体
+    auto view = registry.view<const tag, const position>();
 
-    // step5: 移除組件
-    // 使用 registry.remove<ComponentType>(entity) 方法移除組件
-    registry.remove<Velocity>(player);
+    view.each([](const auto &entity_tag, const auto &pos)
+              {
+        // 我们可以直接比较哈希值（...也可以比较）
+        if (entity_tag.id == "player"_hs) {
+            spdlog::info("找到玩家，位置: ({}, {})", pos.x, pos.y);
+        }
 
-    // step6: 銷毀實體
-    // 使用 registry.destroy(entity) 方法銷毀實體及其所有組件
-    registry.destroy(enemy);
+        if (entity_tag.id == "enemy"_hs) {
+            spdlog::info("找到敌人，位置: ({}, {})", pos.x, pos.y);
+        } });
 
-    // step7: 檢查實體是否存在
-    if (registry.valid(player))
-    {
-        spdlog::info("Player entity is valid.");
-    }
-    if (!registry.valid(enemy))
-    {
-        spdlog::info("Enemy entity has been destroyed.");
-    }
+    // 3. 哈希值与原始值
+    auto player_tag = registry.get<tag>(player);
+    // spdlog::info("玩家标签的哈希值: {}", player_tag.value.value());
+    // spdlog::info("玩家标签的原始文本: {}", player_tag.value.data());
+    spdlog::info("玩家标签的哈希值: {}", player_tag.id);
+    spdlog::info("玩家标签的原始文本: {}", player_tag.value);
+
+    return 0;
 }
