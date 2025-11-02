@@ -1,108 +1,172 @@
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3_image/SDL_image.h>
 #include <spdlog/spdlog.h>
-#include <entt/entt.hpp>
-#include <glm/vec2.hpp>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
+#include <imgui_impl_sdlrenderer3.h>
 
-struct position
+void ImGuiWindow1()
 {
-    float x;
-    float y;
-};
-struct velocity
-{
-    float dx;
-    float dy;
-};
-struct tag
-{
-    entt::id_type id;
-    std::string value;
-};
 
-// 上下文变量
-struct game_state
-{
-    int score = 0;
-};
-
-// 1. 定义事件
-// 事件通常是简单的结构体，用于携带数据。
-// 这个事件携带了被消灭的敌人的信息。
-struct enemy_destroyed_event
-{
-    entt::entity enemy_entity;
-    // 可以在此添加更多信息，比如敌人类型、掉落物品等
-};
-
-// 2. 创建一个监听器，监听器可以是一个独立的类或一个函数。
-// 这里使用类来组织逻辑。
-class ScoreSystem
-{
-    entt::registry &registry; // 需要 registry 的引用，以便获取上下文
-public:
-    ScoreSystem(entt::registry &reg) : registry(reg) {}
-
-    // 这是事件处理函数。当接收到 enemy_destroyed_event 时，这个函数会被调用。
-    void on_enemy_destroyed(const enemy_destroyed_event &event)
+    static float volume_value = 0.5f;
+    ImGui::Begin("窗口1");
+    ImGui::Text("這是第一個窗口");
+    ImGui::SetWindowFontScale(1.5f);
+    if (ImGui::Button("按钮1", ImVec2(200, 60)))
     {
-        // 从上下文中获取游戏状态并增加分数
-        auto &state = registry.ctx().get<game_state>();
-        state.score += 10;
-
-        spdlog::info("杀死敌人 {}，分数增加！当前分数: {}", entt::to_integral(event.enemy_entity), state.score);
-        /* entt::entity 的底层是 entt::id_type，即 uint32_t，但不可直接当成整数用（保证类型安全），
-                                                可以用 entt::to_integral 显式转换为 uint32_t */
+        spdlog::info("按钮1被点击");
     }
-};
-
-// 另一种监听器，直接使用函数
-void dummy_listener(const enemy_destroyed_event &event)
-{
-    spdlog::info("DummyListener 收到事件：敌人 {} 被摧毁！", entt::to_integral(event.enemy_entity));
+    ImGui::SetWindowFontScale(1.0f);
+    if (ImGui::SliderFloat("音量", &volume_value, 0.0f, 1.0f))
+    {
+        spdlog::info("音量被调整: {}", volume_value);
+    }
+    ImGui::End();
 }
 
-int main()
+void ImGuiWindow2(SDL_Renderer *renderer)
 {
-    using namespace entt::literals;
-    entt::registry registry;
+    ImGui::Begin("窗口2");
+    // 显示图片
+    auto texture = IMG_LoadTexture(renderer, "assets/textures/Buildings/Castle.png");
+    if (texture)
+    {
+        ImGui::Image(texture, ImVec2(128, 128));
+    }
+    else
+    {
+        ImGui::Text("无法加载图片");
+    }
+    ImGui::End();
+}
 
-    // 初始化上下文变量
-    registry.ctx().emplace<game_state>();
+void ImGuiOptionalSettings()
+{
+    ImGuiIO &io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
 
-    // 3. 创建事件分发器 (dispatcher) 和监听器实例
-    entt::dispatcher dispatcher{};
-    ScoreSystem score_system(registry);
+    // 设置 ImGui 主题
+    ImGui::StyleColorsDark();
+    // ImGui::StyleColorsLight();
 
-    // 4. 连接监听器到分发器
-    // dispatcher.sink<EventType>().connect<&Class::MemberFunction>(instance)
-    // 这行代码告诉分发器：当有 enemy_destroyed_event 类型的事件时，
-    // 调用 score_system 实例的 on_enemy_destroyed 方法。
-    dispatcher.sink<enemy_destroyed_event>().connect<&ScoreSystem::on_enemy_destroyed>(score_system);
+    // 设置缩放
+    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()); // 与系统缩放一致
+    // float main_scale = 1.0f;     // 或者直接设置更加稳定
+    ImGuiStyle &style = ImGui::GetStyle();
+    style.ScaleAllSizes(main_scale); // 固定样式缩放比例。
+    style.FontScaleDpi = main_scale; // 设置初始字体缩放比例。
 
-    // 同一个事件可以连接多个函数（注意调用的顺序，后进先调）
-    dispatcher.sink<enemy_destroyed_event>().connect<&dummy_listener>();
+    // 设置透明度
+    float window_alpha = 0.5f;
 
-    // 创建实体
-    entt::entity enemy_to_destroy = registry.create();
-    registry.emplace<tag>(enemy_to_destroy, "enemy"_hs, "enemy");
+    // 修改各个UI元素的透明度
+    style.Colors[ImGuiCol_WindowBg].w = window_alpha;
+    style.Colors[ImGuiCol_PopupBg].w = window_alpha;
 
-    spdlog::info("=== 游戏进行中 ===");
-    spdlog::info("初始分数: {}", registry.ctx().get<game_state>().score);
+    // 为了正确显示中文，我们需要加载支持中文的字体。
+    ImFont *font = io.Fonts->AddFontFromFileTTF(
+        "assets/fonts/ToneOZ-Tsuipita-TC.ttf",            // 字体文件路径
+        16.0f,                                            // 字体大小
+        nullptr,                                          // 字体配置参数
+        io.Fonts->GetGlyphRangesChineseSimplifiedCommon() // 字符范围
+    );
+    if (!font)
+    {
+        // 如果字体加载失败，回退到默认字体，但中文将无法显示。
+        io.Fonts->AddFontDefault();
+        spdlog::warn("警告：无法加载中文字体，中文字符将无法正确显示。");
+    }
+}
 
-    // ... 战斗发生 ...
-    spdlog::info("玩家摧毁了敌人 {}!", static_cast<uint32_t>(enemy_to_destroy));
-    registry.destroy(enemy_to_destroy); // 从 registry 中移除实体
+void ImGuiInit(SDL_Window *window, SDL_Renderer *renderer)
+{
+    // 初始化 ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
 
-    // 5. 发布事件
-    // 使用 enqueue 来将事件放入队列，通常在游戏循环的末尾统一处理。 (trigger 会立即触发)
-    dispatcher.enqueue(enemy_destroyed_event{enemy_to_destroy});
+    // 可选配置
+    ImGuiOptionalSettings();
 
-    // 6. 更新分发器
-    // 在游戏循环的某个固定点（比如末尾），调用 update() 来处理队列中的所有事件。
-    // 这时，所有连接的监听器函数才会被调用。
-    dispatcher.update();
+    // 初始化 ImGui 的 SDL3 和 SDL_Renderer3 后端
+    ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
+    ImGui_ImplSDLRenderer3_Init(renderer);
+}
 
-    spdlog::info("=== 游戏循环结束 ===");
-    spdlog::info("最终分数: {}", registry.ctx().get<game_state>().score);
+void ImGuiLoop(SDL_Renderer *renderer)
+{
+    // ImGui: 开始新帧
+    ImGui_ImplSDLRenderer3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+    ImGui::NewFrame();
+
+    // 显示一个Demo窗口 （UI声明与逻辑交互）
+    // ImGui::ShowDemoWindow();
+    ImGuiWindow1();
+    ImGuiWindow2(renderer);
+
+    // ImGui: 渲染
+    ImGui::Render();                                                       // 生成绘图数据
+    ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer); // 执行渲染
+}
+
+void ImGuiShutdown()
+{
+    // ImGui: 清理工作
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
+}
+
+int main(int, char **)
+{
+
+    // SDL初始化
+    if (!SDL_Init(SDL_INIT_VIDEO))
+    {
+        spdlog::error("SDL_Init Error: {}", SDL_GetError());
+        return 1;
+    }
+    // 创建窗口
+    SDL_Window *window = SDL_CreateWindow("Hello World!", 1280, 800, 0);
+    // 创建渲染器
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
+
+    // 1. ImGui 初始化
+    ImGuiInit(window, renderer);
+
+    // 渲染循环
+    while (true)
+    {
+        SDL_Event event;
+        if (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_EVENT_QUIT)
+            {
+                break;
+            }
+            // 2. ImGui: 处理 ImGui 事件
+            ImGui_ImplSDL3_ProcessEvent(&event);
+        }
+
+        // 清屏
+        SDL_RenderClear(renderer);
+
+        // 3. 一轮循环内，ImGui 需要做的操作（逻辑+渲染）
+        ImGuiLoop(renderer);
+
+        // 更新屏幕
+        SDL_RenderPresent(renderer);
+    }
+
+    // 4. ImGui 清理
+    ImGuiShutdown();
+
+    // SDL清理并退出
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
 }
