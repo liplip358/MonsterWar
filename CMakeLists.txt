@@ -19,7 +19,7 @@ include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
 # 🔹 專案源碼
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
-# 🔹 建立執行檔（這時 IMGUI_SOURCES 已定義）
+# 🔹 建立執行檔
 add_executable(MonsterWar ${SOURCES} ${IMGUI_SOURCES})
 
 # 🔹 SDL3_mixer
