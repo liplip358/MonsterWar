@@ -17,10 +17,8 @@ cmake-build-*/
 
 #vcpkg
 vcpkg_installed/
-vcpkg*.json
 
 #cmake
-CMakePresets.json
 
 # msc
 .clang-tidy
