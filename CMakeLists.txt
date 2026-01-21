@@ -28,10 +28,10 @@ message(STATUS "After: ${SOURCES}")
 add_executable(MonsterWar ${SOURCES} ${IMGUI_SOURCES})
 
 # 🔹 SDL3_mixer
-set(SDL3_MIXER_DIR "C:/Library/SDL3_mixer")
+set(SDL3_MIXER_DIR "C:/Users/esmon/OneDrive/Desktop/CppGames/MonsterWar/external/sdl_mixer")
 include_directories(${SDL3_MIXER_DIR}/include)
 link_directories(${SDL3_MIXER_DIR})
-target_link_libraries(MonsterWar PRIVATE "${SDL3_MIXER_DIR}/lib/x64/SDL3_mixer.lib")
+target_link_libraries(MonsterWar PRIVATE "${SDL3_MIXER_DIR}/lib/SDL3_mixer.lib")
 
 # 🔹 vcpkg 套件
 find_package(SDL3 CONFIG REQUIRED)
