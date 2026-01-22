@@ -20,7 +20,7 @@ include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
 # 過濾掉 *_component.cpp
-list(FILTER SOURCES EXCLUDE REGEX "_component\\.cpp$")
+# list(FILTER SOURCES EXCLUDE REGEX "_component\\.cpp$")
 
 # 過濾掉特定檔案
 list(REMOVE_ITEM SOURCES

@@ -17,7 +17,7 @@ namespace engine::render
      * 位置、缩放和旋转由外部（例如 SpriteComponent）标识。
      * 渲染工作由 Renderer 类完成。（传入Sprite作为参数）
      */
-    class Sprite final
+    class Image final
     {
     private:
         std::string texture_path_;                       ///< @brief 纹理资源的文件路径
@@ -29,7 +29,7 @@ namespace engine::render
         /**
          * @brief 默认构造函数（创建一个空的/无效的精灵）
          */
-        Sprite() = default;
+        Image() = default;
 
         /**
          * @brief 构造一个精灵 （通过纹理路径构造）
@@ -38,7 +38,7 @@ namespace engine::render
          * @param source_rect 可选的源矩形（SDL_FRect），定义要使用的纹理部分。如果为 std::nullopt，则使用整个纹理。
          * @param is_flipped 是否水平翻转
          */
-        Sprite(std::string_view texture_path, std::optional<engine::utils::Rect> source_rect = std::nullopt, bool is_flipped = false)
+        Image(std::string_view texture_path, std::optional<engine::utils::Rect> source_rect = std::nullopt, bool is_flipped = false)
             : texture_path_(texture_path.data()),
               texture_id_(entt::hashed_string(texture_path.data())),
               source_rect_(std::move(source_rect)),
@@ -54,7 +54,7 @@ namespace engine::render
          * @param is_flipped 是否水平翻转
          * @note 用此方法，需确保对应ID的纹理已经加载到ResourceManager中，因此不需要再提供纹理路径。
          */
-        Sprite(entt::id_type texture_id, std::optional<engine::utils::Rect> source_rect = std::nullopt, bool is_flipped = false)
+        Image(entt::id_type texture_id, std::optional<engine::utils::Rect> source_rect = std::nullopt, bool is_flipped = false)
             : texture_id_(texture_id),
               source_rect_(std::move(source_rect)),
               is_flipped_(is_flipped)
