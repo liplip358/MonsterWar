@@ -18,11 +18,18 @@ include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
 # 🔹 專案源碼
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
-message(STATUS "Before: ${SOURCES}")
+
+# 過濾掉 *_component.cpp
+list(FILTER SOURCES EXCLUDE REGEX "_component\\.cpp$")
+
+# 過濾掉特定檔案
 list(REMOVE_ITEM SOURCES
     "${CMAKE_SOURCE_DIR}/src/engine/scene/level_loader.cpp"
 )
-message(STATUS "After: ${SOURCES}")
+
+# 印出清單
+message(STATUS "Sources count: ${SOURCES}")
+
 
 # 🔹 建立執行檔
 add_executable(MonsterWar ${SOURCES} ${IMGUI_SOURCES})

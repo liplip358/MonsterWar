@@ -254,6 +254,7 @@ namespace engine::core
             return false;
         }
         spdlog::trace("资源管理器初始化成功。");
+        resource_manager_->loadResources("assets/data/resource_mapping.json"); // 加载资源映射文件
         return true;
     }
 
