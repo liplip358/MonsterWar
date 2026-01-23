@@ -23,9 +23,9 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # list(FILTER SOURCES EXCLUDE REGEX "_component\\.cpp$")
 
 # 過濾掉特定檔案
-list(REMOVE_ITEM SOURCES
-    "${CMAKE_SOURCE_DIR}/src/engine/scene/level_loader.cpp"
-)
+# list(REMOVE_ITEM SOURCES
+#    "${CMAKE_SOURCE_DIR}/src/engine/scene/level_loader.cpp"
+# )
 
 # 印出清單
 message(STATUS "Sources count: ${SOURCES}")

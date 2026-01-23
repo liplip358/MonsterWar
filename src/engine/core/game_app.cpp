@@ -72,6 +72,8 @@ namespace engine::core
             return false;
         if (!initSDL())
             return false;
+        if (!initGameState())
+            return false;
         if (!initTime())
             return false;
         if (!initResourceManager())
@@ -85,8 +87,6 @@ namespace engine::core
         if (!initTextRenderer())
             return false;
         if (!initInputManager())
-            return false;
-        if (!initGameState())
             return false;
 
         if (!initContext())
@@ -107,7 +107,8 @@ namespace engine::core
 
     void GameApp::handleEvents()
     {
-        input_manager_->update(); // 每帧首先更新输入管理器
+        // 处理并分发输入事件
+        input_manager_->update();
 
         scene_manager_->handleInput();
     }
@@ -198,7 +199,10 @@ namespace engine::core
             return false;
         }
 
-        window_ = SDL_CreateWindow(config_->window_title_.c_str(), config_->window_width_, config_->window_height_, SDL_WINDOW_RESIZABLE);
+        // 设置窗口大小 (窗口大小 * 窗口缩放比例)
+        int window_width = static_cast<int>(static_cast<float>(config_->window_width_) * config_->window_scale_);
+        int window_height = static_cast<int>(static_cast<float>(config_->window_height_) * config_->window_scale_);
+        window_ = SDL_CreateWindow(config_->window_title_.c_str(), window_width, window_height, SDL_WINDOW_RESIZABLE);
         if (window_ == nullptr)
         {
             spdlog::error("无法创建窗口! SDL错误: {}", SDL_GetError());
@@ -220,9 +224,25 @@ namespace engine::core
         SDL_SetRenderVSync(sdl_renderer_, vsync_mode);
         spdlog::trace("VSync 设置为: {}", config_->vsync_enabled_ ? "Enabled" : "Disabled");
 
-        // 设置逻辑分辨率为窗口大小的一半（针对像素游戏）
-        SDL_SetRenderLogicalPresentation(sdl_renderer_, config_->window_width_ / 2, config_->window_height_ / 2, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+        // 设置逻辑分辨率 (窗口大小 * 逻辑缩放比例)
+        int logical_width = static_cast<int>(static_cast<float>(config_->window_width_) * config_->window_logical_scale_);
+        int logical_height = static_cast<int>(static_cast<float>(config_->window_height_) * config_->window_logical_scale_);
+        SDL_SetRenderLogicalPresentation(sdl_renderer_, logical_width, logical_height, SDL_LOGICAL_PRESENTATION_LETTERBOX);
         spdlog::trace("SDL 初始化成功。");
+        return true;
+    }
+
+    bool GameApp::initGameState()
+    {
+        try
+        {
+            game_state_ = std::make_unique<engine::core::GameState>(window_, sdl_renderer_);
+        }
+        catch (const std::exception &e)
+        {
+            spdlog::error("初始化游戏状态失败: {}", e.what());
+            return false;
+        }
         return true;
     }
 
@@ -254,7 +274,7 @@ namespace engine::core
             return false;
         }
         spdlog::trace("资源管理器初始化成功。");
-        resource_manager_->loadResources("assets/data/resource_mapping.json"); // 加载资源映射文件
+        resource_manager_->loadResources("assets/data/resource_mapping.json"); // 载入默认资源映射文件
         return true;
     }
 
@@ -294,7 +314,7 @@ namespace engine::core
     {
         try
         {
-            camera_ = std::make_unique<engine::render::Camera>(glm::vec2(config_->window_width_ / 2, config_->window_height_ / 2));
+            camera_ = std::make_unique<engine::render::Camera>(game_state_->getLogicalSize());
         }
         catch (const std::exception &e)
         {
@@ -332,20 +352,6 @@ namespace engine::core
             return false;
         }
         spdlog::trace("输入管理器初始化成功。");
-        return true;
-    }
-
-    bool GameApp::initGameState()
-    {
-        try
-        {
-            game_state_ = std::make_unique<engine::core::GameState>(window_, sdl_renderer_);
-        }
-        catch (const std::exception &e)
-        {
-            spdlog::error("初始化游戏状态失败: {}", e.what());
-            return false;
-        }
         return true;
     }
 
