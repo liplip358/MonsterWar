@@ -21,7 +21,8 @@ namespace game::defs
     }; ///< @brief 远程单位标签
     struct HealerTag
     {
-    }; ///< @brief 治疗单
+    }; ///< @brief 治疗单位标签
+
     struct AttackReadyTag
     {
     }; ///< @brief “可攻击”标签，用于标记实体可以进行攻击（冷却完毕）
@@ -33,4 +34,13 @@ namespace game::defs
     struct ActionLockTag
     {
     }; ///< @brief 动作锁定标签，让角色播放完当前动画再进行下一步动作（硬直）
+
+    struct OneShotRemoveTag
+    {
+    }; ///< @brief 一次性移除标签，用于标记实体一次性移除（如死亡特效）
+
+    struct HasHealthBarTag
+    {
+    }; ///< @brief 血量条标签，用于标记实体有血量条
+
 } // namespace game::defs
