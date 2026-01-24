@@ -75,6 +75,7 @@ namespace game::data
     struct PlayerClassBlueprint
     {
         entt::id_type class_id_{entt::null};
+        entt::id_type projectile_id_{entt::null};
         std::string class_name_;
         StatsBlueprint stats_{};
         PlayerBlueprint player_{};
@@ -88,6 +89,7 @@ namespace game::data
     struct EnemyClassBlueprint
     {
         entt::id_type class_id_{entt::null};
+        entt::id_type projectile_id_{entt::null};
         std::string class_name_;
         StatsBlueprint stats_{};
         EnemyBlueprint enemy_{};
@@ -95,6 +97,17 @@ namespace game::data
         SpriteBlueprint sprite_{};
         DisplayInfoBlueprint display_info_{};
         std::unordered_map<entt::id_type, AnimationBlueprint> animations_;
+    };
+
+    /// @brief 投射物蓝图, 用于创建投射物组件
+    struct ProjectileBlueprint
+    {
+        entt::id_type id_{entt::null};
+        std::string name_;
+        float arc_height_{};
+        float total_flight_time_{};
+        SpriteBlueprint sprite_{};
+        SoundBlueprint sounds_{};
     };
 
 } // namespace game::data

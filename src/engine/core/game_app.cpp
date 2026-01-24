@@ -46,6 +46,9 @@ namespace engine::core
             update(delta_time);
             render();
 
+            // 分发事件（让新创建的实体先更新再渲染）
+            dispatcher_->update();
+
             // spdlog::info("delta_time: {}", delta_time);
         }
 
@@ -117,9 +120,6 @@ namespace engine::core
     {
         // 游戏逻辑更新
         scene_manager_->update(delta_time);
-
-        // 分发事件
-        dispatcher_->update();
     }
 
     void GameApp::render()
