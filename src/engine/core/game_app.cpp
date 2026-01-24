@@ -112,8 +112,6 @@ namespace engine::core
     {
         // 处理并分发输入事件
         input_manager_->update();
-
-        scene_manager_->handleInput();
     }
 
     void GameApp::update(float delta_time)
