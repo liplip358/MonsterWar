@@ -4,6 +4,7 @@
 #include "../factory/entity_factory.h"
 #include "../factory/blueprint_manager.h"
 #include "../loader/entity_builder_mw.h"
+#include "../spawner/enemy_spawner.h"
 #include "../system/followpath_system.h"
 #include "../system/remove_dead_system.h"
 #include "../system/block_system.h"
@@ -18,6 +19,8 @@
 #include "../system/effect_system.h"
 #include "../system/health_bar_system.h"
 #include "../system/game_rule_system.h"
+#include "../system/place_unit_system.h"
+#include "../system/render_range_system.h"
 #include "../ui/units_portrait_ui.h"
 #include "../defs/tags.h"
 #include "../../engine/input/input_manager.h"
@@ -31,10 +34,6 @@
 #include "../../engine/system/audio_system.h"
 #include "../../engine/loader/level_loader.h"
 #include "../../engine/ui/ui_manager.h"
-#include "../../engine/ui/ui_panel.h"
-#include "../../engine/ui/ui_image.h"
-#include "../../engine/ui/ui_button.h"
-#include "../../engine/ui/ui_label.h"
 #include <entt/core/hashed_string.hpp>
 #include <entt/signal/sigh.hpp>
 #include <spdlog/spdlog.h>
@@ -59,6 +58,11 @@ namespace game::scene
         if (!initSessionData())
         {
             spdlog::error("初始化session_data_失败");
+            return;
+        }
+        if (!initLevelConfig())
+        {
+            spdlog::error("初始化关卡配置失败");
             return;
         }
         if (!initUIConfig())
@@ -101,9 +105,12 @@ namespace game::scene
             spdlog::error("初始化系统失败");
             return;
         }
+        if (!initEnemySpawner())
+        {
+            spdlog::error("初始化敌人生成器失败");
+            return;
+        }
 
-        testSessionData();
-        createTestEnemy();
         Scene::init();
     }
 
@@ -125,9 +132,11 @@ namespace game::scene
         projectile_system_->update(delta_time);
         movement_system_->update(registry_, delta_time);
         animation_system_->update(delta_time);
+        place_unit_system_->update(delta_time);
         ysort_system_->update(registry_); // 调用顺序要在MovementSystem之后
 
         // 场景中其他更新函数
+        enemy_spawner_->update(delta_time);
         units_portrait_ui_->update(delta_time);
         Scene::update(delta_time);
     }
@@ -140,6 +149,7 @@ namespace game::scene
         // 注意渲染顺序，保证正确的遮盖关系
         render_system_->update(registry_, renderer, camera);
         health_bar_system_->update(registry_, renderer, camera);
+        render_range_system_->update(registry_, renderer, camera);
 
         Scene::render();
     }
@@ -151,10 +161,7 @@ namespace game::scene
         // 断开所有事件连接
         dispatcher.disconnect(this);
         // 断开输入信号连接
-        input_manager.onAction("mouse_right"_hs).disconnect<&GameScene::onCreateTestPlayerMelee>(this);
-        input_manager.onAction("mouse_left"_hs).disconnect<&GameScene::onCreateTestPlayerRanged>(this);
         input_manager.onAction("pause"_hs).disconnect<&GameScene::onClearAllPlayers>(this);
-        input_manager.onAction("move_left"_hs).disconnect<&GameScene::onCreateTestPlayerHealer>(this);
         Scene::clean();
     }
 
@@ -170,6 +177,22 @@ namespace game::scene
             }
         }
         level_number_ = session_data_->getLevelNumber();
+        return true;
+    }
+
+    bool GameScene::initLevelConfig()
+    {
+        if (!level_config_)
+        {
+            level_config_ = std::make_shared<game::data::LevelConfig>();
+            if (!level_config_->loadFromFile("assets/data/level_config.json"))
+            {
+                spdlog::error("加载关卡配置失败");
+                return false;
+            }
+        }
+        waves_ = level_config_->getWavesData(level_number_);
+        game_stats_.enemy_count_ = level_config_->getTotalEnemyCount(level_number_);
         return true;
     }
 
@@ -196,7 +219,9 @@ namespace game::scene
                                                                                       registry_,
                                                                                       waypoint_nodes_,
                                                                                       start_points_));
-        if (!level_loader.loadLevel("assets/maps/level1.tmj", this))
+        // 获取关卡地图路径
+        auto map_path = level_config_->getMapPath(level_number_);
+        if (!level_loader.loadLevel(map_path, this))
         {
             spdlog::error("加载关卡失败");
             return false;
@@ -213,10 +238,7 @@ namespace game::scene
     bool GameScene::initInputConnections()
     {
         auto &input_manager = context_.getInputManager();
-        input_manager.onAction("mouse_right"_hs).connect<&GameScene::onCreateTestPlayerMelee>(this);
-        input_manager.onAction("mouse_left"_hs).connect<&GameScene::onCreateTestPlayerRanged>(this);
         input_manager.onAction("pause"_hs).connect<&GameScene::onClearAllPlayers>(this);
-        input_manager.onAction("move_left"_hs).connect<&GameScene::onCreateTestPlayerHealer>(this);
         return true;
     }
 
@@ -245,7 +267,12 @@ namespace game::scene
         registry_.ctx().emplace<std::shared_ptr<game::factory::BlueprintManager>>(blueprint_manager_);
         registry_.ctx().emplace<std::shared_ptr<game::data::SessionData>>(session_data_);
         registry_.ctx().emplace<std::shared_ptr<game::data::UIConfig>>(ui_config_);
+        registry_.ctx().emplace<std::shared_ptr<game::data::LevelConfig>>(level_config_);
+        registry_.ctx().emplace<std::unordered_map<int, game::data::WaypointNode> &>(waypoint_nodes_);
+        registry_.ctx().emplace<std::vector<int> &>(start_points_);
         registry_.ctx().emplace<game::data::GameStats &>(game_stats_);
+        registry_.ctx().emplace<game::data::Waves &>(waves_);
+        registry_.ctx().emplace<int &>(level_number_);
         spdlog::info("registry_ 上下文初始化完成");
         return true;
     }
@@ -288,74 +315,26 @@ namespace game::scene
         effect_system_ = std::make_unique<game::system::EffectSystem>(registry_, dispatcher, *entity_factory_);
         health_bar_system_ = std::make_unique<game::system::HealthBarSystem>();
         game_rule_system_ = std::make_unique<game::system::GameRuleSystem>(registry_, dispatcher);
+        place_unit_system_ = std::make_unique<game::system::PlaceUnitSystem>(registry_, *entity_factory_, context_);
+        render_range_system_ = std::make_unique<game::system::RenderRangeSystem>();
         spdlog::info("系统初始化完成");
         return true;
     }
 
+    bool GameScene::initEnemySpawner()
+    {
+        enemy_spawner_ = std::make_unique<game::spawner::EnemySpawner>(registry_, *entity_factory_);
+        spdlog::info("敌人生成器初始化完成");
+        return true;
+    }
+
     // --- 测试函数 ---
-    void GameScene::testSessionData()
-    {
-        spdlog::info("关卡号: {}", level_number_);
-        spdlog::info("积分: {}", session_data_->getPoint());
-        spdlog::info("是否通关: {}", session_data_->isLevelClear());
-        for (auto &unit : session_data_->getUnitMap())
-        {
-            spdlog::info("角色名: {}, 职业: {}, 等级: {}, 稀有度: {}", unit.second.name_, unit.second.class_, unit.second.level_, unit.second.rarity_);
-        }
-    }
-
-    void GameScene::createTestEnemy()
-    {
-        // 每个起点创建一批敌人
-        for (auto start_index : start_points_)
-        {
-            auto position = waypoint_nodes_[start_index].position_;
-
-            entity_factory_->createEnemyUnit("wolf"_hs, position, start_index);
-            entity_factory_->createEnemyUnit("slime"_hs, position, start_index);
-            entity_factory_->createEnemyUnit("goblin"_hs, position, start_index);
-            entity_factory_->createEnemyUnit("dark_witch"_hs, position, start_index);
-        }
-    }
-
-    bool GameScene::onCreateTestPlayerMelee()
-    {
-        auto position = context_.getInputManager().getLogicalMousePosition();
-        auto entity = entity_factory_->createPlayerUnit("warrior"_hs, position);
-        // 让玩家处于受伤状态（治疗师不会锁定满血目标）
-        registry_.emplace<game::defs::InjuredTag>(entity);
-        auto &stats = registry_.get<game::component::StatsComponent>(entity);
-        stats.hp_ = stats.max_hp_ / 2;
-        spdlog::info("创建战士: 位置: {}, {}", position.x, position.y);
-        return true;
-    }
-
-    bool GameScene::onCreateTestPlayerRanged()
-    {
-        auto position = context_.getInputManager().getLogicalMousePosition();
-        auto entity = entity_factory_->createPlayerUnit("archer"_hs, position);
-        // 让玩家处于受伤状态（治疗师不会锁定满血目标）
-        registry_.emplace<game::defs::InjuredTag>(entity);
-        auto &stats = registry_.get<game::component::StatsComponent>(entity);
-        stats.hp_ = stats.max_hp_ / 2;
-        spdlog::info("创建弓箭手: 位置: {}, {}", position.x, position.y);
-        return true;
-    }
-
-    bool GameScene::onCreateTestPlayerHealer()
-    {
-        auto position = context_.getInputManager().getLogicalMousePosition();
-        entity_factory_->createPlayerUnit("witch"_hs, position);
-        spdlog::info("创建治疗者: 位置: {}, {}", position.x, position.y);
-        return true;
-    }
-
     bool GameScene::onClearAllPlayers()
     {
         auto view = registry_.view<game::component::PlayerComponent>();
         for (auto entity : view)
         {
-            registry_.destroy(entity);
+            context_.getDispatcher().enqueue(game::defs::RemovePlayerUnitEvent{entity});
         }
         return true;
     }
